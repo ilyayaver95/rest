@@ -29,4 +29,9 @@ agent = {"User-Agent":'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (K
 page = requests.get(url, verify=False, headers=agent)
 
 rest_soup = BeautifulSoup(page.content, 'html.parser')
-print(page.text)
+
+# print(rest_soup.prettify())
+
+text = rest_soup.find("div", attrs={"class":"feature-column-photo", "data-bg":"" ,"data-event-id":"148"})
+
+print(text)
