@@ -4,6 +4,16 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
 
+'''
+Oren: attributes /num_of_feedbacks
+Ilya: name  / stars  /  address
+
+Create a function for each data which will extract the relevant data. 
+Those function will be called from 'extract_page_attributes' function
+
+final_box: func(stars + num_feedbacks)....
+'''
+
 def get_page(url):
     try:
         agent = {"User-Agent":'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'}
@@ -18,8 +28,10 @@ def extract_page_attributes(content):
     feature_column = soup.find_all("div", attrs={"class":"feature-column"})
     for col in feature_column:
         pageid = col.attrs["data-customer"]
+        print("page id "+pageid)
         feature_page = get_page("https://www.rest.co.il/rest/" + pageid)
-        feature_soup = soup = BeautifulSoup(feature_page.content, 'html.parser')
+        feature_soup = BeautifulSoup(feature_page.content, 'html.parser')
+
         # need to extract features
 
 def get_body_for_pages(num):
