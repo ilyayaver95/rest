@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 import requests
 import urllib3
+from geopy.geocoders import Nominatim
+import geopy
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
 
@@ -28,14 +30,56 @@ def get_page_attributes(page):
     
     return None
 
+def get_name(feature_page):
+    """
+
+    :param feature_page:
+    :return: name of the restaurant
+    """
+    name = feature_page.find("h1")  # , attrs={"class": "main_banner_content"}
+    return name.text.split(',')[0]  # take the name "name, location" and leave only the name
+
+def get_stars(feature_page):
+    """
+
+    :param feature_page:
+    :return:number of stars
+    """
+    if(feature_page.find("div", attrs={"class":"reviews_wrap"})):
+        stars = feature_page.find("div", attrs={"class":"reviews_wrap"}).find("span")  # , attrs={"class": "main_banner_content"}
+    else:
+        stars = None
+    # print(stars)
+    if(stars):
+        return stars.text
+    else:
+        return None
+
+def get_geolocation(feature_page):
+    """
+
+    :param feature_page:
+    :return: geolocation of rest
+    """
+    address = feature_page.find("h5")
+    geolocator = Nominatim(user_agent="catuserbot")
+    location = geolocator.geocode(address.text)
+    if(location):
+        return location.latitude, location.longitude
+    else:
+        return None
+    # return address.text  # take the address
+
 def extract_page_attributes(page):
     feature_column = page.find_all("div", attrs={"class":"feature-column"})
     for col in feature_column:
         pageid = col.attrs["data-customer"]
-        print("page id "+pageid)
         feature_page = get_page_soup("https://www.rest.co.il/rest/" + pageid)
-
-        # need to extract features
+        print("page id " + pageid)
+        print("name: " + get_name(feature_page))
+        print("stars: {}".format(get_stars(feature_page)))
+        print("geolocation: {}".format(get_geolocation(feature_page)))
+        print("      ")
 
 def get_body_for_pages(num):
     page = get_page_soup("https://www.rest.co.il/restaurants/israel")
