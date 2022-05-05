@@ -1,3 +1,4 @@
+from attr import attributes
 from bs4 import BeautifulSoup
 import requests
 import urllib3
@@ -14,8 +15,6 @@ Ilya: name  / stars  /  address
 Create a function for each data which will extract the relevant data. 
 Those function will be called from 'extract_page_attributes' function
 
-*attribute issue- shows maximum of 6 attributes. need to consider a use of Selenuim
-
 Empty attributes need to be set to 0
 
 final_box: func(stars + num_feedbacks)....
@@ -31,23 +30,29 @@ def get_page_soup(url):
         print("Could not get page {}: \n {}".format(url, e))
     return None
 
-def get_page_attributes_sel(url):
-    FFDriverServer = r'C:\Program Files\Mozilla Firefox\firefox.exe'
-
-    driver = webdriver.Firefox(executable_path=FFDriverServer)  
-
+def get_page_attributes_sel(url, feature_body):
+    driver_path = "C:\Program Files (x86)\chromedriver.exe"
+    driver = webdriver.Chrome(driver_path)
     driver.get(url)
-    button = driver.find_element_by_css_selector('#site-main > div > div.place_and_rush_hours > div > div > div > div > small')
-    button.click()
+    
+    button = None
+    try:
+        button = driver.find_element_by_css_selector('#site-main > div > div.place_and_rush_hours > div > div > div > div > small')
+    except Exception as e:
+        pass
+    if(button):
+        button.click()
+        html = driver.page_source
+        soup = BeautifulSoup(html)
+        attributes_body = soup.find('div', {'class':'pop-scroll-wrap'}).find_all('li')
+        attributes = [attr.text.replace("\n","").strip() for attr in attributes_body]
+        driver.quit()
+        return attributes
+    else:
+        driver.quit()
+        return get_page_attributes(feature_body)
 
-
-    # additional_feature_div = body.find('div', {'class':'additional_features'})
-    # if(additional_feature_div):
-    #     additional_features_btn = additional_feature_div.find('small')
-    #     ActionChains(browser).click(additional_features_btn).perform()
-
-
-def get_page_attributes(pageid, body):
+def get_page_attributes(body):
     attributes_body = body.find('div', {'class':'place_info'}).find_all('li')
     attributes = [attr.text for attr in attributes_body]
     return attributes
@@ -71,8 +76,7 @@ def extract_page_attributes(page):
             print("page id "+pageid)
             url = "https://www.rest.co.il/rest/" + pageid
             feature_body = get_page_soup(url)
-            get_page_attributes_sel(url)
-            page_attributes = get_page_attributes(pageid, feature_body)
+            page_attributes = get_page_attributes_sel(url, feature_body)
             print("page_attributes ", page_attributes)
             num_of_reviews = get_number_of_reviews(feature_body)
             print('number of reviews: ', num_of_reviews)
@@ -93,5 +97,5 @@ def get_body_for_pages(num):
         
 
 
-body = get_body_for_pages(2)
+body = get_body_for_pages(1)
 
