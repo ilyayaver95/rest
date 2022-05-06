@@ -6,6 +6,7 @@ from datetime import datetime
 import requests
 import urllib3
 import os
+from selenium.webdriver.chrome.options import Options
 from geopy.geocoders import Nominatim
 import geopy
 from pathlib import Path  
@@ -33,7 +34,9 @@ def get_page_soup(url):
 
 def get_page_attributes_sel(url, feature_body):
     driver_path = "C:\Program Files (x86)\chromedriver.exe"
-    driver = webdriver.Chrome(driver_path)
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(driver_path, options=options)
     driver.get(url)
 
     button = None
@@ -44,19 +47,25 @@ def get_page_attributes_sel(url, feature_body):
     if(button):
         button.click()
         html = driver.page_source
-        soup = BeautifulSoup(html)
-        attributes_body = soup.find('div', {'class':'pop-scroll-wrap'}).find_all('li')
-        attributes = [attr.text.replace("\n","").strip() for attr in attributes_body]
-        driver.quit()
-        return attributes
+        soup = BeautifulSoup(html, 'html.parser')
+        attributes_body = soup.find('div', {'class':'pop-scroll-wrap'})
+        if attributes_body:
+            attributes_list = attributes_body.find_all('li')
+            attributes = [attr.text.replace("\n","").strip() for attr in attributes_list]
+            driver.quit()
+            return attributes        
+        return []
     else:
         driver.quit()
         return get_page_attributes(feature_body)
 
 def get_page_attributes(body):
-    attributes_body = body.find('div', {'class':'place_info'}).find_all('li')
-    attributes = [attr.text for attr in attributes_body]
-    return attributes
+    attributes_body = body.find('div', {'class':'place_info'})
+    if(attributes_body):
+        attributes_list = attributes_body.find_all('li')
+        attributes = [attr.text for attr in attributes_list]
+        return attributes
+    return []
 
 def get_number_of_reviews(body):
     try:
@@ -126,8 +135,8 @@ def save_df_to_csv(df):
 
 def extract_page_attributes(page):
     feature_column = page.find_all("div", attrs={"class":"feature-column"})
-    print("feature num ", len(feature_column))
-    data = []
+    print("rest in page ", len(feature_column))
+    data_local = []
     for col in feature_column:
         try:
             pageid = col.attrs["data-customer"]
@@ -148,28 +157,25 @@ def extract_page_attributes(page):
             }
             for att in page_attributes:
                 resturant[att] = '1'    
-            print(resturant)
-            data.append(resturant)
+            print(resturant['name'])
+            data_local.append(resturant)
         except Exception as e:
             print("[extract_page_attributes] error: ", e)
-    return data
+    return data_local
 
 def get_data_for_pages(num):
     page = get_page_soup("https://www.rest.co.il/restaurants/israel")
     data.extend(extract_page_attributes(page))
     if(num == 1):
         return data
-    for i in range(1,num):
+    for i in range(2,num + 1):
         print("page ", i)
         page = get_page_soup("https://www.rest.co.il/restaurants/israel/page-{}/".format(i))
         if(page is None):
             break
-        data.extend(extract_page_attributes(page))
+        data.extend(extract_page_attributes(page))   
     return data
 
-
-
-data = get_data_for_pages(1)
+data = get_data_for_pages(3)
 df = pd.DataFrame.from_records(data)
-print(df)
 save_df_to_csv(df)
