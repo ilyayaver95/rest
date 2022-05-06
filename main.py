@@ -1,9 +1,14 @@
+from turtle import pd
+import pandas as pd
 from attr import attributes
 from bs4 import BeautifulSoup
+from datetime import datetime
 import requests
 import urllib3
+import os
 from geopy.geocoders import Nominatim
 import geopy
+from pathlib import Path  
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 
@@ -11,12 +16,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
 
 '''
-Oren: attributes /num_of_feedbacks
-Ilya: name  / stars  /  address
-
-Create a function for each data which will extract the relevant data. 
-Those function will be called from 'extract_page_attributes' function
-
 Empty attributes need to be set to 0
 
 final_box: func(stars + num_feedbacks)....
@@ -29,7 +28,7 @@ def get_page_soup(url):
         soup = BeautifulSoup(page.content, 'html.parser')
         return soup
     except Exception as e:
-        print("Could not get page {}: \n {}".format(url, e))
+        print("[get_page_soup] Could not get page {}: \n {}".format(url, e))
     return None
 
 def get_page_attributes_sel(url, feature_body):
@@ -62,12 +61,14 @@ def get_page_attributes(body):
 def get_number_of_reviews(body):
     try:
         reviews_body = body.find('div', {'class':'raviews_box_item'})
-        reviews_link = reviews_body.find('a')
-        num = reviews_link.text.split(' ')[0]
-        if(num.isdecimal()):
-            return num
+        if(reviews_body):
+            reviews_link = reviews_body.find('a')
+            if(reviews_link):
+                num = reviews_link.text.split(' ')[0]
+                if(num.isdecimal()):
+                    return num
     except Exception as e:
-        print("could not get number of reviews ", e)
+        print("[get_number_of_reviews] could not get number of reviews ", e)
     return 0
 
 def get_name(feature_page):
@@ -76,8 +77,11 @@ def get_name(feature_page):
     :param feature_page:
     :return: name of the restaurant
     """
-    name = feature_page.find("h1")  # , attrs={"class": "main_banner_content"}
-    return name.text.split(',')[0]  # take the name "name, location" and leave only the name
+    try:
+        name = feature_page.find("h1")  # , attrs={"class": "main_banner_content"}
+        return name.text.split(',')[0].strip()  # take the name "name, location" and leave only the name
+    except Exception as e:
+        print("[get_name] error: ", e)
 
 def get_stars(feature_page):
     """
@@ -110,38 +114,62 @@ def get_geolocation(feature_page):
         return None
     # return address.text  # take the address
 
+def save_df_to_csv(df):
+    folder_name = "Resturants Output"
+    if(not os.path.exists(folder_name)):
+        os.mkdir(folder_name)
+    file_name = "Rest df {}.csv".format(datetime.now().strftime("%d.%b.%Y %H-%M-%S"))
+    filepath = Path("{}/{}".format(folder_name, file_name))  
+    filepath.parent.mkdir(parents=True, exist_ok=True)  
+    df.to_csv(filepath, encoding = 'utf-8-sig', index=False)
+    print("Your df is saved !") 
+
 def extract_page_attributes(page):
     feature_column = page.find_all("div", attrs={"class":"feature-column"})
+    print("feature num ", len(feature_column))
+    data = []
     for col in feature_column:
         try:
             pageid = col.attrs["data-customer"]
             print("page id "+pageid)
             url = "https://www.rest.co.il/rest/" + pageid
             feature_body = get_page_soup(url)
+            name = get_name(feature_body)
             page_attributes = get_page_attributes_sel(url, feature_body)
-            print("page_attributes ", page_attributes)
             num_of_reviews = get_number_of_reviews(feature_body)
-            print('number of reviews: ', num_of_reviews)
-            print("name: " + get_name(feature_page))
-            print("stars: {}".format(get_stars(feature_page)))
-            print("geolocation: {}".format(get_geolocation(feature_page)))
-            # need to extract features
+            stars = get_stars(feature_body)
+            geolocation = get_geolocation(feature_body)
+            resturant = {
+                'id'             : pageid,
+                'name'           : name,
+                'stars'          : stars,
+                'location'       : geolocation, 
+                'num_of_reivews' :  num_of_reviews
+            }
+            for att in page_attributes:
+                resturant[att] = '1'    
+            print(resturant)
+            data.append(resturant)
         except Exception as e:
-            print("error: ", e)
+            print("[extract_page_attributes] error: ", e)
+    return data
 
-def get_body_for_pages(num):
+def get_data_for_pages(num):
     page = get_page_soup("https://www.rest.co.il/restaurants/israel")
-    data.append(extract_page_attributes(page))
+    data.extend(extract_page_attributes(page))
     if(num == 1):
-        return 
+        return data
     for i in range(1,num):
         print("page ", i)
         page = get_page_soup("https://www.rest.co.il/restaurants/israel/page-{}/".format(i))
         if(page is None):
             break
-        data.append(extract_page_attributes(page))
+        data.extend(extract_page_attributes(page))
+    return data
 
 
 
-body = get_body_for_pages(2)
-
+data = get_data_for_pages(1)
+df = pd.DataFrame.from_records(data)
+print(df)
+save_df_to_csv(df)
