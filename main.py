@@ -153,7 +153,7 @@ def extract_page_attributes(page):
                 'name'           : name,
                 'stars'          : stars,
                 'location'       : geolocation, 
-                'num_of_reivews' :  num_of_reviews
+                'num_of_reviews' :  num_of_reviews
             }
             for att in page_attributes:
                 resturant[att] = '1'    
@@ -176,6 +176,19 @@ def get_data_for_pages(num):
         data.extend(extract_page_attributes(page))   
     return data
 
-data = get_data_for_pages(3)
-df = pd.DataFrame.from_records(data)
-save_df_to_csv(df)
+
+def load_csv(file_name): #for testing
+    return pd.read_csv(file_name, header=0, sep=',')
+
+def fill_empty_binary_values(df):
+    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+
+
+#data = get_data_for_pages(5)
+#df = pd.DataFrame.from_records(data)
+#save_df_to_csv(df)
+df = load_csv("Resturants Output\Rest df 07.May.2022 12-57-04.csv")
+
+
+
+fill_empty_binary_values(df)
