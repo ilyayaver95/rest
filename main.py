@@ -8,6 +8,7 @@ from datetime import datetime
 import requests
 import urllib3
 import os
+from selenium.webdriver.chrome.options import Options
 from geopy.geocoders import Nominatim
 import geopy
 from pathlib import Path  
@@ -38,7 +39,9 @@ def get_page_soup(url):
 
 def get_page_attributes_sel(url, feature_body):
     driver_path = "C:\Program Files (x86)\chromedriver.exe"
-    driver = webdriver.Chrome(driver_path)
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(driver_path, options=options)
     driver.get(url)
 
     button = None
@@ -49,19 +52,25 @@ def get_page_attributes_sel(url, feature_body):
     if(button):
         button.click()
         html = driver.page_source
-        soup = BeautifulSoup(html)
-        attributes_body = soup.find('div', {'class':'pop-scroll-wrap'}).find_all('li')
-        attributes = [attr.text.replace("\n","").strip() for attr in attributes_body]
-        driver.quit()
-        return attributes
+        soup = BeautifulSoup(html, 'html.parser')
+        attributes_body = soup.find('div', {'class':'pop-scroll-wrap'})
+        if attributes_body:
+            attributes_list = attributes_body.find_all('li')
+            attributes = [attr.text.replace("\n","").strip() for attr in attributes_list]
+            driver.quit()
+            return attributes
+        return []
     else:
         driver.quit()
         return get_page_attributes(feature_body)
 
 def get_page_attributes(body):
-    attributes_body = body.find('div', {'class':'place_info'}).find_all('li')
-    attributes = [attr.text for attr in attributes_body]
-    return attributes
+    attributes_body = body.find('div', {'class':'place_info'})
+    if(attributes_body):
+        attributes_list = attributes_body.find_all('li')
+        attributes = [attr.text for attr in attributes_list]
+        return attributes
+    return []
 
 def get_type(feature_page):
     """
@@ -117,6 +126,7 @@ def get_stars(feature_page):
 
 def get_geolocation(feature_page):
     """
+
     :param feature_page:
     :return: geolocation of rest
     """
@@ -171,11 +181,11 @@ def extract_page_attributes(page):
                 'location'       : geolocation,
                 'num_of_reivews' :  num_of_reviews
             }
-            for att in page_attributes:  # adding  the attributes to the restaurant JSON
-                resturant[att] = '1'
-            print(resturant)
+            for att in page_attributes:
+                resturant[att] = '1'    
+            print(resturant['name'])
             data_local.append(resturant)
-        except Exception as e:  # Some error in extrakting data
+        except Exception as e:
             print("[extract_page_attributes] error: ", e)
     return data_local
 
@@ -184,7 +194,7 @@ def get_data_for_pages(num):
     data.extend(extract_page_attributes(page))  # adding the page lst of JSON to global data DF
     if(num == 1):
         return data
-    for i in range(1,num):
+    for i in range(2,num + 1):
         print("page ", i)
         page = get_page_soup("https://www.rest.co.il/restaurants/israel/page-{}/".format(i))
         if(page is None):
@@ -232,4 +242,18 @@ df = load_csv("Resturants Output\Rest df 07.May.2022 12-57-04.csv")
 
 df['score'] = df.apply(lambda row: row.stars - (1.96 * ( 1 / math.sqrt(row.num_of_reivews))), axis=1)  # update score column
 df['score_normalized '] = df.apply(lambda row:  (row.score-min(df.score))/(max(df.score)-min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
+def load_csv(file_name): #for testing
+    return pd.read_csv(file_name, header=0, sep=',')
 
+def fill_empty_binary_values(df):
+    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+
+
+#data = get_data_for_pages(5)
+#df = pd.DataFrame.from_records(data)
+#save_df_to_csv(df)
+df = load_csv("Resturants Output\Rest df 07.May.2022 12-57-04.csv")
+
+
+
+fill_empty_binary_values(df)
