@@ -179,7 +179,7 @@ def extract_page_attributes(page):
                 'type'           : type,
                 'stars'          : stars,
                 'location'       : geolocation,
-                'num_of_reivews' :  num_of_reviews
+                'num_of_reviews' :  num_of_reviews
             }
             for att in page_attributes:
                 resturant[att] = '1'    
@@ -249,6 +249,7 @@ df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
 
 
 fill_empty_binary_values(df)
+df = df[df.num_of_reivews != 0]
 update_score(df)
 #save_df_to_csv(df)
 print(df)
