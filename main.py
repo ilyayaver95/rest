@@ -229,31 +229,26 @@ def score_equation(df, row):
 def load_csv(file_name): #for testing
     return pd.read_csv(file_name, header=0, sep=',')
 
+def fill_empty_binary_values(df):
+    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+
 def heat_map(df):
-    corr = data.corr()  # heat map
+    corr = df.corr()  # heat map
     sns.heatmap(corr, xticklabels=corr.columns, yticklabels=corr.columns)  #
     plt.show()
+
+def update_score(df):
+    df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reivews))), axis=1)  # update score column
+    df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
+
 
 # data = get_data_for_pages(1)
 # df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
-
-df = load_csv("Resturants Output\Rest df 07.May.2022 12-57-04.csv")
-
-df['score'] = df.apply(lambda row: row.stars - (1.96 * ( 1 / math.sqrt(row.num_of_reivews))), axis=1)  # update score column
-df['score_normalized '] = df.apply(lambda row:  (row.score-min(df.score))/(max(df.score)-min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
-def load_csv(file_name): #for testing
-    return pd.read_csv(file_name, header=0, sep=',')
-
-def fill_empty_binary_values(df):
-    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
-
-
-#data = get_data_for_pages(5)
-#df = pd.DataFrame.from_records(data)
-#save_df_to_csv(df)
-df = load_csv("Resturants Output\Rest df 07.May.2022 12-57-04.csv")
-
+df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
 
 
 fill_empty_binary_values(df)
+update_score(df)
+#save_df_to_csv(df)
+print(df)
