@@ -15,6 +15,8 @@ from pathlib import Path
 from selenium import webdriver
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn import preprocessing
+
 
 from scipy import stats
 from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
@@ -38,7 +40,7 @@ def get_page_soup(url):
     return None
 
 def get_page_attributes_sel(url, feature_body):
-    driver_path = "C:\Program Files (x86)\chromedriver.exe"
+    driver_path = "C:\Program Files\chromedriver.exe"
     options = Options()
     options.headless = True
     driver = webdriver.Chrome(driver_path, options=options)
@@ -230,26 +232,52 @@ def load_csv(file_name): #for testing
     return pd.read_csv(file_name, header=0, sep=',')
 
 def fill_empty_binary_values(df):
-    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+    # df = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+    df = df.fillna(value= 0)
+    return df
 
 def heat_map(df):
     corr = df.corr()  # heat map
     sns.heatmap(corr, xticklabels=corr.columns, yticklabels=corr.columns)  #
     plt.show()
 
-def update_score(df):
-    df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reivews))), axis=1)  # update score column
+def update_score(df1):
+    df = df1
+    save_df_to_csv(df)
+
+    df['score'] = df.apply(lambda row: float(row.stars) - (1.96 * (1 / math.sqrt(int(row.num_of_reviews)))), axis=1)  # update score column
     df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
+    return df
 
-# data = get_data_for_pages(1)
-# df = pd.DataFrame.from_records(data)
+def type_to_int(df1):
+    """
+    turns the categorial type to numeric
+    :param df:
+    :return:
+    """
+    df = df1
+    le = preprocessing.LabelEncoder()
+
+    list = []
+    # df['type_numeric'] = df['type']
+    # df['type_numeric']  = le.fit_transform(df['type_numeric'])
+
+    list = df['type']
+    list = le.fit_transform(list)
+    df.insert(loc=3, column='type_numeric', value = list)
+
+    return df
+
+data = get_data_for_pages(1)
+df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
-df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
+# df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
 
-
-fill_empty_binary_values(df)
-df = df[df.num_of_reivews != 0]
-update_score(df)
-#save_df_to_csv(df)
+print(df.columns)
+df = fill_empty_binary_values(df)  # fixed
+df = df[df.num_of_reviews != 0]
+df = update_score(df)
+df = type_to_int(df)
+save_df_to_csv(df)
 print(df)
