@@ -16,7 +16,7 @@ from selenium import webdriver
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression
 from sklearn import linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsRegressor
@@ -309,27 +309,26 @@ def hight_corr(df1, n=5):
         au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
         return au_corr[0:n]
 
-def log_regression(df):
+def lin_regression(df):
     # lrm = linear_model.LogisticRegression()
     # lrm.fit(df[:,5:-3], df["score_normalized "])
-    #  test size = 25
     data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'type_numeric', 'num_of_reviews']).copy()  # num_of_reviews
     score_normalized = df["score_normalized"]
     x_train, x_test, y_train, y_test = train_test_split(data, score_normalized , test_size=0.20, random_state=0)
     y_train = y_train.astype('int')
     y_test = y_test.astype('int')
 
-    logisticRegr = LogisticRegression()
-    logisticRegr.fit(x_train, y_train)
+    model = LinearRegression()
+    model.fit(x_train, y_train)
 
-    logisticRegr.predict(x_test)  # [0:10]
+    model.predict(x_test)  # [0:10]
 
-    score = logisticRegr.score(x_test, y_test)
+    score = model.score(x_test, y_test)
 
-    print("logistic regression score:")
+    print("Linear regression score:")
     print(score)
 
-    importance = logisticRegr.coef_[0]
+    importance = model.coef_[0]
 
     # summarize feature importance
     # for i, v in enumerate(importance):
@@ -400,7 +399,7 @@ test_df = df.drop(columns = ['גישה לתחבורה ציבורית', 'שירו
 # print('after trim')
 #log_regression(test_df)
 
-log_regression(df)
+lin_regression(df)
 knn_regression(df)
 
 heat_map(test_df)
