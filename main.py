@@ -16,6 +16,12 @@ from selenium import webdriver
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+from sklearn import linear_model
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsRegressor
+
+from collections import Counter
 
 
 from scipy import stats
@@ -246,7 +252,7 @@ def update_score(df1):
     save_df_to_csv(df)
 
     df['score'] = df.apply(lambda row: float(row.stars) - (1.96 * (1 / math.sqrt(int(row.num_of_reviews)))), axis=1)  # update score column
-    df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
+    df['score_normalized'] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
     return df
 
@@ -268,16 +274,138 @@ def type_to_int(df1):
     df.insert(loc=3, column='type_numeric', value = list)
 
     return df
+def gather_features(df1):
+    """
+    ges the df and combines columns with high correlation to one column
+    :param df:
+    :return:
+    """
 
-data = get_data_for_pages(1)
-df = pd.DataFrame.from_records(data)
+    return df
+
+def trimm_correlated(df, threshold):
+    # df_in = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized'])  # num_of_reviews
+    df_in = df
+    df_corr = df_in.corr(method='pearson', min_periods=1)
+    df_not_correlated = ~(df_corr.mask(np.tril(np.ones([len(df_corr)]*2, dtype=bool))).abs() > threshold).any()
+    un_corr_idx = df_not_correlated.loc[df_not_correlated[df_not_correlated.index] == True].index
+    df_out = df_in[un_corr_idx]
+    return df_out
+
+def get_redundant_pairs(df1):
+    '''Get diagonal and lower triangular pairs of correlation matrix'''
+    df = df1.iloc[:,5:-3]
+    pairs_to_drop = set()
+    cols = df.columns
+    for i in range(0, df.shape[1]):
+        for j in range(0, i+1):
+            pairs_to_drop.add((cols[i], cols[j]))
+    return pairs_to_drop
+
+def hight_corr(df1, n=5):
+        df = df1.iloc[:,5:-2]
+        au_corr = df.corr().abs().unstack()
+        labels_to_drop = get_redundant_pairs(df)
+        au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
+        return au_corr[0:n]
+
+def log_regression(df):
+    # lrm = linear_model.LogisticRegression()
+    # lrm.fit(df[:,5:-3], df["score_normalized "])
+    #  test size = 25
+    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'type_numeric', 'num_of_reviews']).copy()  # num_of_reviews
+    score_normalized = df["score_normalized"]
+    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized , test_size=0.20, random_state=0)
+    y_train = y_train.astype('int')
+    y_test = y_test.astype('int')
+
+    logisticRegr = LogisticRegression()
+    logisticRegr.fit(x_train, y_train)
+
+    logisticRegr.predict(x_test)  # [0:10]
+
+    score = logisticRegr.score(x_test, y_test)
+
+    print("logistic regression score:")
+    print(score)
+
+    importance = logisticRegr.coef_[0]
+
+    # summarize feature importance
+    # for i, v in enumerate(importance):
+    #
+    #     print('Feature: %0d, Score: %.5f' % (i, v))
+
+
+
+
+def knn_regression(df):
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'type_numeric',
+                            'num_of_reviews']).copy()  # num_of_reviews
+    score_normalized = df["score_normalized"]
+    X_train, X_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.2, random_state=12)
+
+    knn_model = KNeighborsRegressor(n_neighbors=5).fit(X_train, y_train)
+
+    # Score
+    score_knn = knn_model.score(X_test, y_test)
+    print("knn score:")
+    print(score_knn)
+
+# data = get_data_for_pages(100)  # original
+# df = pd.DataFrame.from_records(data)
+
 # save_df_to_csv(df)
-# df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
 
-print(df.columns)
-df = fill_empty_binary_values(df)  # fixed
-df = df[df.num_of_reviews != 0]
-df = update_score(df)
-df = type_to_int(df)
-save_df_to_csv(df)
-print(df)
+#
+# print(df.columns)
+# df = fill_empty_binary_values(df)  # fixed
+# df = df[df.num_of_reviews != 0]
+# df = update_score(df)
+# df = type_to_int(df)
+# save_df_to_csv(df)
+# print(df)
+
+df = load_csv(r"C:\Users\IlyaY\PycharmProjects\rest\Resturants Output\Rest df 22.May.2022 23-01-25_very big.csv")
+df = df.loc[:, df.any()]  # remove column with all zeros
+type_col = df['type_numeric'].to_list()
+
+values, counts = np.unique(type_col, return_counts=True)  # finds the most common types of restaurant
+ind = np.argpartition(-counts, kth=10)[:10]
+# print(ind)
+
+# for type in ind:    # show best 10 type graphs
+#     df_type = df.loc[df['type_numeric'] == type]
+#     name = (df_type.iloc[0]['type'])[::-1]
+#     # print(df_type.columns)
+#
+#     x = df_type.index
+#     y = df_type['score_normalized '].to_list()
+#
+#     ax = sns.displot(y, kde=True)
+#     ax.set(xlabel='score', ylabel='number of restaurants')
+#     print(name)
+#     ax.fig.suptitle(name)
+#     plt.show()
+
+# heat_map(df)
+
+
+print("Top Absolute Correlations")
+#print(hight_corr(df, 3))
+
+# print(df.corr().unstack().sort_values().drop_duplicates())
+# test_df = trimm_correlated(df, 0.6)  # delete high correlated columns TODO: fix
+test_df = df.drop(columns = ['גישה לתחבורה ציבורית', 'שירות הזמן שולחן' ,'נגישות לנכים' ,'אזור עישון', 'ציוד הגברה','ימי הולדת','ישיבות','אירועים קטנים', 'משלוחים']).copy()
+# print('after trim')
+#log_regression(test_df)
+
+log_regression(df)
+knn_regression(df)
+
+heat_map(test_df)
+
+
+# bistro = df.loc[df['type_by_numeric'] == 1]
+# cafe = df.loc[df['type_by_numeric'] == 2]
+# bistro = df.loc[df['type_by_numeric'] == 1]
