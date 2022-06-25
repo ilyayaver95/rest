@@ -233,11 +233,12 @@ def update_score(df):
 # data = get_data_for_pages(1)
 # df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
-df = load_csv("Resturants Output/Rest df 06.May.2022 18-28-53.csv")
+df = load_csv("Resturants Output/data.csv")
 
 
 fill_empty_binary_values(df)
 df = df[df.num_of_reviews != 0]
+df = df.loc[:df.any()] #Removes columns with zeros only
 update_score(df)
 #save_df_to_csv(df)
 print(df)
