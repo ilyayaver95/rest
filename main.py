@@ -12,6 +12,8 @@ from bs4 import BeautifulSoup
 from geopy.geocoders import Nominatim
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
@@ -27,10 +29,9 @@ def get_page_soup(url):
     return None
 
 def get_page_attributes_sel(url, feature_body):
-    driver_path = "C:\Program Files (x86)\chromedriver.exe"
     options = Options()
     options.headless = True
-    driver = webdriver.Chrome(driver_path, options=options)
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     driver.get(url)
 
     button = None
@@ -218,7 +219,8 @@ def load_csv(file_name): #for testing
     return pd.read_csv(file_name, header=0, sep=',')
 
 def fill_empty_binary_values(df):
-    df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+    #df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+    df.fillna(value=0, inplace=True)
 
 def heat_map(df):
     corr = df.corr()  # heat map
@@ -226,7 +228,6 @@ def heat_map(df):
     plt.show()
 
 def update_score(df):
-    a = 1
     df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reviews))), axis=1)  # update score column
     df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
@@ -256,12 +257,15 @@ def split_loc(df):
 # data = get_data_for_pages(1)
 # df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
-df = load_csv("Resturants Output/data.csv")
 
+df = load_csv("Resturants Output/Rest df 25.Jun.2022 20-13-15.csv")
 
+a = 1
 fill_empty_binary_values(df)
+a = 1
 df = df[df.num_of_reviews != 0]
 df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
+df = split_loc(df)
 update_score(df)
 #save_df_to_csv(df)
 print(df)
