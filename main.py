@@ -1,31 +1,36 @@
 import math
-from turtle import pd
-import pandas as pd
-import numpy as np
-from attr import attributes
-from bs4 import BeautifulSoup
-from datetime import datetime
-import requests
-import urllib3
 import os
-from selenium.webdriver.chrome.options import Options
-from geopy.geocoders import Nominatim
-import geopy
-from pathlib import Path  
-from selenium import webdriver
-import seaborn as sns
+from datetime import datetime
+from pathlib import Path
+from turtle import pd
+
+import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import requests
+import seaborn as sns
+import urllib3
+from bs4 import BeautifulSoup
+from geopandas import GeoDataFrame
+from geopy.geocoders import Nominatim
+from scipy.stats import spearmanr
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from shapely.geometry import Point
+from sklearn import neighbors
 from sklearn import preprocessing
+from sklearn.decomposition import PCA  # to apply PCA
 from sklearn.linear_model import LinearRegression
-from sklearn import linear_model
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler  # to standardize the features
+import plotly.express as px
+from mpl_toolkits.basemap import Basemap
 
-from collections import Counter
-
-
-from scipy import stats
-from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
+import geopandas as gpd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
@@ -309,64 +314,196 @@ def hight_corr(df1, n=5):
         au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
         return au_corr[0:n]
 
+def dim_reduce_PCA(df):
+
+    scalar = StandardScaler()
+    scaled_data = pd.DataFrame(scalar.fit_transform(df))  # scaling the data
+    scaled_data
+
+    pca = PCA(n_components=3)
+    pca.fit(scaled_data)
+    data_pca = pca.transform(scaled_data)
+    data_pca = pd.DataFrame(data_pca, columns=['PC1', 'PC2', 'PC3'])
+    print(data_pca.head())
+    return data_pca
+
+def show_rest_map(df):
+    geo_df = pd.DataFrame(columns=['id','lat', 'lon', 'score'])
+    location = df['location']
+
+    geo_df['id'] = df['id']
+    geo_df['lat'] = df['location'].str.extract(r'(.*),')
+    geo_df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')
+
+    geometry = [Point(xy) for xy in zip(geo_df['lat'], geo_df['lon'])]
+    gdf = GeoDataFrame(df, geometry=geometry)
+
+    # this is a simple map that goes with geopandas
+    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    gdf.plot(ax=world.plot(figsize=(10, 6)), marker='o', color='red', markersize=15);
+
+def geo_map(df):
+    lat = df['location'].str.extract(r'(.*),').values   # .astype(int).values
+    lon = df['location'].str.extract(r'(\w+(?: \w+)*)$').values
+    score = df['score_normalized'].values
+    # area = cities['area_total_km2'].values
+
+
+    fig = plt.figure(figsize=(8, 8))
+    m = Basemap(projection='lcc', resolution='h',
+                width=0.5E6, height=0.5E6,
+                lat_0=31.6, lon_0=34.88, )
+    # m.etopo(scale=0.5, alpha=0.5)
+    m.shadedrelief()
+    m.drawcoastlines(color='gray')
+    m.drawcountries(color='gray')
+    m.drawstates(color='gray')
+
+    m.scatter(lon, lat, latlon=True,c=np.log10(score), cmap='Reds', alpha=0.5)
+
+
+
+    # Map (long, lat) to (x, y) for plotting
+    x, y = m(32, 34)
+    plt.plot(x, y, 'ok', markersize=5)
+    plt.text(x, y, ' Seattle', fontsize=12)
+    plt.show()
+
+
 def lin_regression(df):
-    # lrm = linear_model.LogisticRegression()
-    # lrm.fit(df[:,5:-3], df["score_normalized "])
-    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'type_numeric', 'num_of_reviews']).copy()  # num_of_reviews
+
+    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'num_of_reviews']).copy()  # num_of_reviews
+    # data = df.drop(columns = ['score_normalized']).copy()  # num_of_reviews
+
+    # data = dim_reduce_PCA(data)
     score_normalized = df["score_normalized"]
-    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized , test_size=0.20, random_state=0)
-    y_train = y_train.astype('int')
-    y_test = y_test.astype('int')
 
-    model = LinearRegression()
-    model.fit(x_train, y_train)
+    # lr = linear_model.LinearRegression()  # create a linear regression object
+    #
+    # x = data
+    # y = score_normalized
+    # lr.fit(X=x, y=y)
+    #
+    # print("Slope:", lr.coef_)
+    # print("Intercept:", lr.intercept_)
+    # print("R2:", lr.score(x, y))
+    # print("R2:", r2_score(y, lr.predict(x.values)))
 
-    model.predict(x_test)  # [0:10]
-
-    score = model.score(x_test, y_test)
-
-    print("Linear regression score:")
+    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.1)
+    clf = LinearRegression()
+    clf.fit(x_train, y_train)
+    clf.predict(x_test)
+    score = clf.score(x_test, y_test)
+    print("lin_regression score:")
     print(score)
 
-    importance = model.coef_[0]
+    print("Slope:", clf.coef_)
+    print("Intercept:", clf.intercept_)
+    print("R2:", clf.score(data, score_normalized))
+    print("R2:", r2_score(score_normalized, clf.predict(data.values)))
 
-    # summarize feature importance
-    # for i, v in enumerate(importance):
+def lin_reg2(df1):
+    df = df1
+    # location = df['location']  todo: split lat lon
+    # df['lat'] = df['location'].str.extract(r'(.*),')# .astype(int)
+    # df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')# .astype(int)
     #
-    #     print('Feature: %0d, Score: %.5f' % (i, v))
+    # df['lat'] = df['lat'].astype(int)
+    # df['lon'] = df['lon'].astype(int)
+    # #
+    # df['lat'] = round(df['lat'],2)
+    # df['lon'] = round(df['lon'],2)
 
 
+    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'num_of_reviews']).copy()  # num_of_reviews
+    score_normalized = df["score_normalized"]
+
+    # Train the linear regression model
+    reg = LinearRegression()
+    model = reg.fit(data, score_normalized)
+
+    # Generate a prediction
+    # example = t.transform(pd.DataFrame([{
+    #     'par1': 2, 'par2': 0.33, 'par3': 'no', 'par4': 'red'
+    # }]))
+    # prediction = model.predict(example)
+    reg_score = reg.score(data, score_normalized)
+    print(reg_score)
+    # print(prediction, reg_score)
+
+def lin_reg3(df):
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type',
+                            'num_of_reviews']).copy()  # num_of_reviews
+    score_normalized = df["score_normalized"]
+    X_train, X_test, Y_train, Y_test = train_test_split(data, score_normalized, test_size=.20, random_state=40)
+
+    regr = LinearRegression()  # Do not use fit_intercept = False if you have removed 1 column after dummy encoding
+    regr.fit(X_train, Y_train)
+    predicted = regr.predict(X_test)
+
+    print("Slope:", regr.coef_)
+    print("Intercept:", regr.intercept_)
+    print("R2:", regr.score(data, score_normalized))
+    print("R2:", r2_score(score_normalized, predicted))
 
 
 def knn_regression(df):
-    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type', 'type_numeric',
+    # df = pd.get_dummies(df)
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type',
                             'num_of_reviews']).copy()  # num_of_reviews
+    # data = df.drop(columns=['score_normalized']).copy()  # num_of_reviews
+    data = pd.get_dummies(data)
+    # data = dim_reduce_PCA(data)
+
     score_normalized = df["score_normalized"]
     X_train, X_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.2, random_state=12)
 
+    scaler = MinMaxScaler(feature_range=(0, 1))
+
+    x_train_scaled = scaler.fit_transform(X_train)
+    x_train = pd.DataFrame(x_train_scaled)
+
+    x_test_scaled = scaler.fit_transform(X_test)
+    x_test = pd.DataFrame(x_test_scaled)
+
     knn_model = KNeighborsRegressor(n_neighbors=5).fit(X_train, y_train)
+    params = {'n_neighbors': [2, 3, 4, 5, 6, 7, 8, 9]}
+    knn = neighbors.KNeighborsRegressor()
+
+    model = GridSearchCV(knn, params, cv=5)
+    model.fit(x_train, y_train)
+    print(model.best_params_)
 
     # Score
-    score_knn = knn_model.score(X_test, y_test)
+    score_knn = model.score(x_test, y_test)
     print("knn score:")
     print(score_knn)
 
-# data = get_data_for_pages(100)  # original
-# df = pd.DataFrame.from_records(data)
+def drop_low_coef_features(df):
+    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'type', 'type_numeric', 'num_of_reviews']).copy()  # num_of_reviews
 
-# save_df_to_csv(df)
+    targetVar = 'score_normalized'
+    corr_threshold = 0.03
 
-#
-# print(df.columns)
-# df = fill_empty_binary_values(df)  # fixed
-# df = df[df.num_of_reviews != 0]
-# df = update_score(df)
-# df = type_to_int(df)
-# save_df_to_csv(df)
-# print(df)
+    corr = spearmanr(data)
+    corrSeries = pd.Series(corr[0][:, 0],
+                           index=data.columns)  # Series with column names and their correlation coefficients
+    corrSeries = corrSeries[(corrSeries.index != targetVar) & (corrSeries > corr_threshold)]  # apply the threshold
+
+    vars_to_keep = list(corrSeries.index.values)  # list of variables to keep
+    vars_to_keep.append(targetVar)  # add the target variable back in
+    data2 = data[vars_to_keep]
+
+    print(data2.columns)
+
+    return data2
+
+
 
 df = load_csv(r"C:\Users\IlyaY\PycharmProjects\rest\Resturants Output\Rest df 22.May.2022 23-01-25_very big.csv")
-df = df.loc[:, df.any()]  # remove column with all zeros
+
+df = df.loc[:, df.any()]  # remove columns with all zeros
+# df = df.loc[:, (df==0).mean() < .99]
 type_col = df['type_numeric'].to_list()
 
 values, counts = np.unique(type_col, return_counts=True)  # finds the most common types of restaurant
@@ -389,22 +526,36 @@ ind = np.argpartition(-counts, kth=10)[:10]
 
 # heat_map(df)
 
-
-print("Top Absolute Correlations")
-#print(hight_corr(df, 3))
-
-# print(df.corr().unstack().sort_values().drop_duplicates())
 # test_df = trimm_correlated(df, 0.6)  # delete high correlated columns TODO: fix
 test_df = df.drop(columns = ['גישה לתחבורה ציבורית', 'שירות הזמן שולחן' ,'נגישות לנכים' ,'אזור עישון', 'ציוד הגברה','ימי הולדת','ישיבות','אירועים קטנים', 'משלוחים']).copy()
-# print('after trim')
-#log_regression(test_df)
-
-lin_regression(df)
-knn_regression(df)
-
-heat_map(test_df)
 
 
-# bistro = df.loc[df['type_by_numeric'] == 1]
-# cafe = df.loc[df['type_by_numeric'] == 2]
-# bistro = df.loc[df['type_by_numeric'] == 1]
+# test_df2 = drop_low_coef_features(df)
+# df['location'] = df['location'][1:-1]
+# location = df['location']
+lat = df['location'].str.extract(r'(.*),')
+lon = df['location'].str.extract(r'(\w+(?: \w+)*)$')
+# lat = [np.logical_not(np.isnan(lat))]
+lat = str(lat)
+lat = lat.replace(" ", "")
+
+# for i in range(len(lat)):
+#     start = lat[i].find("(") +1
+#     end = lat[i].find(".") + 5
+#     lat[i] = lat[i][start:end]
+
+
+
+print(lat)
+
+
+
+geo_map(df)
+
+lin_reg2(df)
+#
+# lin_regression(df)
+#
+# knn_regression(df)
+
+# heat_map(test_df)
