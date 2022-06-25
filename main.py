@@ -1,31 +1,20 @@
 import math
-from turtle import pd
-import pandas as pd
-import numpy as np
-from attr import attributes
-from bs4 import BeautifulSoup
-from datetime import datetime
-import requests
-import urllib3
 import os
-from selenium.webdriver.chrome.options import Options
-from geopy.geocoders import Nominatim
-import geopy
-from pathlib import Path  
-from selenium import webdriver
-import seaborn as sns
+from datetime import datetime
+from pathlib import Path
+from turtle import pd
 import matplotlib.pyplot as plt
-
-from scipy import stats
-from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
+import pandas as pd
+import requests
+import seaborn as sns
+import urllib3
+from bs4 import BeautifulSoup
+from geopy.geocoders import Nominatim
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
-
-'''
-# 
-# final_box: func(stars + num_feedbacks)....
-# '''
 
 def get_page_soup(url):
     try:
@@ -137,11 +126,10 @@ def get_geolocation(feature_page):
         return location.latitude, location.longitude
     else:
         return None
-    # return address.text  # take the address
 
 def save_df_to_csv(df):
     """
-    cerates csv based on the DF.
+    creates csv based on the DF.
     """
     folder_name = "Resturants Output"
     if(not os.path.exists(folder_name)):
