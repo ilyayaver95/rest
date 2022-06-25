@@ -229,6 +229,28 @@ def update_score(df):
     df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reviews))), axis=1)  # update score column
     df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
+def split_loc(df):
+    """
+    splits the location into lat and lon columns and updates the df
+    :param df:
+    :return:
+    """
+    lat = []
+    lon = []
+
+    location = df['location']
+    for i in range(len(location)):
+        if (location[i] == '0'):
+            lat.append(0)
+            lon.append(0)
+        else:
+            temp = location[i].replace(" ", "").replace("(", "").replace(")", "").split(",")  # .trim()
+            lat.append(temp[0][:4])
+            lon.append(temp[1][:4])
+
+    df['lat'] = lat
+    df['lon'] = lon
+    return df
 
 # data = get_data_for_pages(1)
 # df = pd.DataFrame.from_records(data)
@@ -239,6 +261,7 @@ df = load_csv("Resturants Output/data.csv")
 fill_empty_binary_values(df)
 df = df[df.num_of_reviews != 0]
 df = df.loc[:df.any()] #Removes columns with zeros only
+df = update_score(df)
 update_score(df)
 #save_df_to_csv(df)
 print(df)
