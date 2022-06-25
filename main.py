@@ -226,6 +226,7 @@ def heat_map(df):
     plt.show()
 
 def update_score(df):
+    a = 1
     df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reviews))), axis=1)  # update score column
     df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
@@ -260,8 +261,7 @@ df = load_csv("Resturants Output/data.csv")
 
 fill_empty_binary_values(df)
 df = df[df.num_of_reviews != 0]
-df = df.loc[:df.any()] #Removes columns with zeros only
-df = update_score(df)
+df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
 update_score(df)
 #save_df_to_csv(df)
 print(df)
