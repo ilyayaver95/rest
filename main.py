@@ -4,15 +4,19 @@ from datetime import datetime
 from pathlib import Path
 from turtle import pd
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import requests
 import seaborn as sns
 import urllib3
 from bs4 import BeautifulSoup
+from geopandas import GeoDataFrame
+from geopy import Point
 from geopy.geocoders import Nominatim
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from sklearn import preprocessing
 from webdriver_manager.chrome import ChromeDriverManager
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -229,7 +233,7 @@ def heat_map(df):
 
 def update_score(df):
     df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reviews))), axis=1)  # update score column
-    df['score_normalized '] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
+    df['score_normalized'] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
 def split_loc(df):
     """
@@ -240,9 +244,9 @@ def split_loc(df):
     lat = []
     lon = []
 
-    location = df['location']
+    location = df['location'].tolist()
     for i in range(len(location)):
-        if (location[i] == '0'):
+        if location[i] == '0' or location[i] == 0:
             lat.append(0)
             lon.append(0)
         else:
@@ -254,18 +258,79 @@ def split_loc(df):
     df['lon'] = lon
     return df
 
-# data = get_data_for_pages(1)
+def type_to_int(df1):
+    """
+    turns the categorial type to numeric
+    :param df:
+    :return:
+    """
+    df = df1
+    le = preprocessing.LabelEncoder()
+    list = []
+    list = df['type']
+    list = le.fit_transform(list)
+    df.insert(loc=3, column='type_numeric', value=list)
+    return df
+
+def heat_map(df):
+    corr = df.corr()  # heat map
+    sns.heatmap(corr, xticklabels=corr.columns, yticklabels=corr.columns)  #
+    plt.show()
+
+
+def show_rest_map(df, gpd=None):
+    geo_df = pd.DataFrame(columns=['id', 'lat', 'lon', 'score'])
+
+    geo_df['id'] = df['id']
+    geo_df['lat'] = df['location'].str.extract(r'(.*),')
+    geo_df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')
+
+    geometry = [Point(xy) for xy in zip(geo_df['lat'], geo_df['lon'])]
+    gdf = GeoDataFrame(df, geometry=geometry)
+
+    # this is a simple map that goes with geopandas
+    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    gdf.plot(ax=world.plot(figsize=(10, 6)), marker='o', color='red', markersize=15)
+
+def show_histograms(df):
+    type_col = df['type_numeric'].to_list()
+
+    values, counts = np.unique(type_col, return_counts=True)
+    ind = np.argpartition(-counts, kth=10)[:10]
+
+    for type in ind:  # show best 10 type graphs
+        df_type = df.loc[df['type_numeric'] == type]
+        name = (df_type.iloc[0]['type'])[::-1]
+        x = df_type.index
+        y = df_type['score_normalized'].to_list()
+
+        ax = sns.displot(y, kde=True)
+        ax.set(xlabel='score', ylabel='number of restaurants')
+        ax.fig.suptitle(name)
+        plt.show()
+
+
+# data = get_data_for_pages(400)
 # df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
 
-df = load_csv("Resturants Output/Rest df 25.Jun.2022 20-13-15.csv")
+df = load_csv("Resturants Output/6kdata.csv")
 
-a = 1
 fill_empty_binary_values(df)
-a = 1
 df = df[df.num_of_reviews != 0]
 df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
+df = type_to_int(df)
 df = split_loc(df)
 update_score(df)
 #save_df_to_csv(df)
-print(df)
+#print(df)
+
+
+#EDA
+
+#heat_map(df)
+#show_rest_map(df)
+#show_histograms(df)
+
+
+
