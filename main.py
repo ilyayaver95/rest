@@ -17,6 +17,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from sklearn import preprocessing
+from sklearn.preprocessing import LabelEncoder
 from webdriver_manager.chrome import ChromeDriverManager
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -258,18 +259,23 @@ def split_loc(df):
     df['lon'] = lon
     return df
 
-def type_to_int(df1):
+def type_to_int(df):
     """
     turns the categorial type to numeric
     :param df:
     :return:
     """
-    df = df1
-    le = preprocessing.LabelEncoder()
-    list = []
-    list = df['type']
-    list = le.fit_transform(list)
-    df.insert(loc=3, column='type_numeric', value=list)
+    # le = preprocessing.LabelEncoder()
+    # list = df['type']
+    # list = le.fit_transform(list)
+    # df.insert(loc=3, column='type_numeric', value=list)
+
+
+    # df.type = pd.Categorical(df.type)
+    # df['type_numeric'] = df.type.cat.codes
+
+    # lbl = LabelEncoder()
+    # df['type_numeric'] = lbl.fit_transform(df['type'])
     return df
 
 def heat_map(df):
@@ -278,12 +284,54 @@ def heat_map(df):
     plt.show()
 
 
+#make this work
+# def geo_map(df):
+#     """
+#     creates a map with visualization of the scores of each restaurants
+#     """
+#     lat = df['lat'].values
+#     lon = df['lon'].values
+#     score = df['score_normalized'].values
+#
+#     fig = plt.figure(figsize=(8, 8))
+#
+#     m = Basemap(projection='lcc', resolution='h',
+#                 width=0.5E6, height=0.5E6,
+#                 lat_0=31.6, lon_0=34.88, )
+#
+#     m.shadedrelief()
+#     m.drawcoastlines(color='gray')
+#     m.drawcountries(color='gray')
+#     m.drawstates(color='gray')
+#
+#
+#
+#     m.scatter(lon, lat, latlon=True, c = score,s = 15, cmap='Reds', alpha=0.3)  # c=np.log10(score)
+#
+#     plt.colorbar(label='score')
+#     plt.clim(0, 1)
+#
+#     # Map (long, lat) to (x, y) for plotting
+#     x, y = m(32, 34)
+#     plt.plot(x, y, 'ok', markersize=2)
+#     plt.text(x, y, ' scores', fontsize=12)
+#     plt.show()
+
+# remove this func
 def show_rest_map(df, gpd=None):
     geo_df = pd.DataFrame(columns=['id', 'lat', 'lon', 'score'])
 
     geo_df['id'] = df['id']
-    geo_df['lat'] = df['location'].str.extract(r'(.*),')
-    geo_df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')
+    #geo_df['lat'] = df['location'].str.extract(r'(.*),')
+    #geo_df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')
+    geo_df['lat'] = df['lat']
+    geo_df['lon'] = df['lon']
+    geo_df['score'] = df['score']
+
+    geo_df = geo_df[geo_df.lat != '0']
+    geo_df = geo_df[geo_df.lon != '0']
+
+    a = 1
 
     geometry = [Point(xy) for xy in zip(geo_df['lat'], geo_df['lon'])]
     gdf = GeoDataFrame(df, geometry=geometry)
@@ -294,7 +342,6 @@ def show_rest_map(df, gpd=None):
 
 def show_histograms(df):
     type_col = df['type_numeric'].to_list()
-
     values, counts = np.unique(type_col, return_counts=True)
     ind = np.argpartition(-counts, kth=10)[:10]
 
@@ -310,6 +357,12 @@ def show_histograms(df):
         plt.show()
 
 
+
+def show_boxplot(df):
+    sns.set_theme(style="white", palette="pastel")
+    ax = sns.boxplot(x=df["score"])
+    plt.show()
+
 # data = get_data_for_pages(400)
 # df = pd.DataFrame.from_records(data)
 # save_df_to_csv(df)
@@ -322,7 +375,7 @@ df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
 df = type_to_int(df)
 df = split_loc(df)
 update_score(df)
-#save_df_to_csv(df)
+save_df_to_csv(df)
 #print(df)
 
 
@@ -331,6 +384,5 @@ update_score(df)
 #heat_map(df)
 #show_rest_map(df)
 #show_histograms(df)
-
-
+#show_boxplot(df)
 
