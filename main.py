@@ -2,6 +2,7 @@ import math
 import os
 from datetime import datetime
 from pathlib import Path
+from statistics import LinearRegression
 from turtle import pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,9 +15,13 @@ from geopy.geocoders import Nominatim
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from sklearn import preprocessing
+from sklearn import preprocessing, neighbors
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler
 from webdriver_manager.chrome import ChromeDriverManager
-# from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.basemap import Basemap
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
@@ -300,32 +305,32 @@ def heat_map(df):
     sns.heatmap(corr, xticklabels=corr.columns, yticklabels=corr.columns)  #
     plt.show()
 
-# def geo_map(df):
-#     """
-#     Creates a map with visualization of the scores of each restaurant.
-#     """
-#     lat = df['lat'].values
-#     lon = df['lon'].values
-#     score = df['score_normalized'].values
-#
-#     m = Basemap(projection='lcc', resolution='h',
-#                 width=0.5E6, height=0.5E6,
-#                 lat_0=31.6, lon_0=34.88, )
-#
-#     m.shadedrelief()
-#     m.drawcoastlines(color='gray')
-#     m.drawcountries(color='gray')
-#     m.drawstates(color='gray')
-#
-#     m.scatter(lon, lat, latlon=True, c = score,s = 15, cmap='Reds', alpha=0.3)
-#
-#     plt.colorbar(label='score')
-#     plt.clim(0, 1)
-#
-#     x, y = m(32, 34)
-#     plt.plot(x, y, 'ok', markersize=2)
-#     plt.text(x, y, ' scores', fontsize=12)
-#     plt.show()
+def geo_map(df):
+    """
+    Creates a map with visualization of the scores of each restaurant.
+    """
+    lat = df['lat'].values
+    lon = df['lon'].values
+    score = df['score_normalized'].values
+
+    m = Basemap(projection='lcc', resolution='h',
+                width=0.5E6, height=0.5E6,
+                lat_0=31.6, lon_0=34.88, )
+
+    m.shadedrelief()
+    m.drawcoastlines(color='gray')
+    m.drawcountries(color='gray')
+    m.drawstates(color='gray')
+
+    m.scatter(lon, lat, latlon=True, c = score,s = 15, cmap='Reds', alpha=0.3)
+
+    plt.colorbar(label='score')
+    plt.clim(0, 1)
+
+    x, y = m(32, 34)
+    plt.plot(x, y, 'ok', markersize=2)
+    plt.text(x, y, ' scores', fontsize=12)
+    plt.show()
 
 def show_histograms(df):
     """
@@ -379,9 +384,132 @@ def get_highly_correlated_cols(df):
 
     return correlations, tuple_arr
 
-# data = get_data_for_pages(400)
-# df = pd.DataFrame.from_records(data)
-# save_df_to_csv(df)
+
+def lin_regression(df):
+    """
+    Running the linear regression model
+    """
+    score_normalized = df["score_normalized"]  # for pca
+    #data = df.drop(columns=['score_normalized'])  # for pca
+    data = df.drop(columns = ['id', 'name', 'stars', 'location', 'score', 'score_normalized','type_numeric', 'num_of_reviews']).copy()  # num_of_reviews
+
+    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.1)
+    clf = LinearRegression()
+    clf.fit(x_train, y_train)
+
+    print("R2 linear regression: ", clf.score(data, score_normalized))  # r2 The coefficient of determination
+
+def knn_regression(df):
+    """
+    Running the KNN regression model
+    """
+    score_normalized = df["score_normalized"]
+
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type_numeric',
+                            'num_of_reviews']).copy()  # num_of_reviews
+
+    # data = df.drop(columns=['score_normalized']).copy()  # num_of_reviews
+
+    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.1, random_state=42)
+
+    # knn_model = KNeighborsRegressor(n_neighbors=5).fit(X_train, y_train)
+    params = {'n_neighbors': [2, 3, 4, 5, 6, 7, 8, 9]}
+    knn = neighbors.KNeighborsRegressor(n_neighbors=5)
+
+    model = GridSearchCV(knn, params, cv=5)
+    model.fit(x_train, y_train)
+
+    print("R2 knn: ", model.score(x_test, y_test))
+
+def network(df):
+    """
+    Running the neural network model
+    """
+    score_normalized = df["score_normalized"]
+    # data = df.drop(columns=['score_normalized'])
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type_numeric',
+                            'num_of_reviews']).copy()  # num_of_reviews
+    # score_normalized = df["score_normalized"]
+    # data = df.drop(columns=['score_normalized'])
+
+    X_train, X_test, y_train, y_test = train_test_split(data, score_normalized, random_state=1)
+    # regr = MLPRegressor(random_state=1, max_iter=500).fit(X_train, y_train)
+    # regr = MLPRegressor(hidden_layer_sizes = (25, 10, 5),max_iter = 200, activation = 'relu',solver = 'adam').fit(X_train, y_train)
+    regr = MLPRegressor(random_state=42, max_iter=250).fit(X_train, y_train)
+    # regr.predict(X_test)
+
+    print("R2 network: ", regr.score(X_test, y_test))
+
+
+def knn_graph(df):
+    """
+    Generating KNN graph in order to show different scores for different amount of neighbors
+    """
+    # df = pd.get_dummies(df)
+    score_normalized = df["score_normalized"]
+
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'type_numeric',
+                            'num_of_reviews']).copy()  # num_of_reviews
+    #
+    # data = df.drop(columns=['score_normalized']).copy()  # num_of_reviews
+
+    x_train, x_test, y_train, y_test = train_test_split(data, score_normalized, test_size=0.1, random_state=42)
+
+    # knn_model = KNeighborsRegressor(n_neighbors=5).fit(X_train, y_train)
+    params = {3, 7, 9, 13}
+    xx = []
+    yy = []
+
+    for i in params:
+        knn = neighbors.KNeighborsRegressor(n_neighbors=i)
+
+        # model = GridSearchCV(knn, params, cv=5)
+        knn.fit(x_train, y_train)
+        # print(model.best_params_)
+        # predicted = model.predict(x_test)
+        # Score
+        # print("R2 knn: ", metrics.mean_absolute_error(predicted, y_test))
+        sc = knn.score(x_test, y_test)
+        print("R2 knn ({} neighbors): {}".format(i, sc))
+        xx.append(i)
+        yy.append(sc)
+
+    d = pd.DataFrame(columns={'k neigbors', 'score'})
+    d['k neigbors'] = xx
+    d['score'] = yy
+    sns.barplot(data=d, x="k neigbors", y="score", palette='Blues_d')
+    plt.show()
+
+
+def dim_reduce_PCA(df, n):
+    """
+    Using the PCA technique in order to reduce dimension
+    """
+    data = df.drop(columns=['id', 'name', 'stars', 'location', 'score', 'score_normalized', 'num_of_reviews']).copy()
+    features = data.columns
+    # Separating out the features
+    x = df.loc[:, features].values
+    # Separating out the target
+    y = df.loc[:, ['score_normalized']].values
+    # Standardizing the features
+    x = StandardScaler().fit_transform(x)
+
+    pca = PCA(n_components=n)
+    principalComponents = pca.fit_transform(x)
+    principalDf = pd.DataFrame(data=principalComponents)
+
+    # print(principalDf)
+    finalDf = pd.concat([principalDf, df[['score_normalized']]], axis=1)
+    finalDf = pd.concat([finalDf, df[['lat', 'lon', 'type_numeric']]], axis=1)
+    return finalDf
+
+# Crawling
+
+data = get_data_for_pages(400)
+df = pd.DataFrame.from_records(data)
+save_df_to_csv(df)
+
+# Handling data
 
 df = load_csv("Resturants Output/6kdata.csv")
 
@@ -391,15 +519,22 @@ df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
 df = type_to_int(df)
 df = split_loc(df)
 update_score(df)
-#save_df_to_csv(df)
-#print(df)
+
+# EDA
+
+get_highly_correlated_cols(df)
+heat_map(df)
+show_rest_map(df)
+show_histograms(df)
+show_boxplot(df)
 
 
-#EDA
+# Regression
 
-#get_highly_correlated_cols(df)
-#heat_map(df)
-#show_rest_map(df)
-#show_histograms(df)
-#show_boxplot(df)
+knn_graph(df)
 
+df1 = dim_reduce_PCA(df, 23)  # reduce the dimension of the feature matrix
+lin_regression(df)
+knn_regression(df)
+
+network(df1)
