@@ -10,20 +10,21 @@ import requests
 import seaborn as sns
 import urllib3
 from bs4 import BeautifulSoup
-from geopandas import GeoDataFrame
-from geopy import Point
 from geopy.geocoders import Nominatim
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from sklearn import preprocessing
-from sklearn.preprocessing import LabelEncoder
 from webdriver_manager.chrome import ChromeDriverManager
+# from mpl_toolkits.basemap import Basemap
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 data = []
 
 def get_page_soup(url):
+    """
+    Returns the web page as an html object.
+    """
     try:
         agent = {"User-Agent":'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'}
         page = requests.get(url, verify=False, headers=agent)
@@ -34,6 +35,10 @@ def get_page_soup(url):
     return None
 
 def get_page_attributes_sel(url, feature_body):
+    """
+    This function is using Selenium in order to 'Click' the 'More properties'
+    button and this allows us to extract all of the restaurant properties.
+    """
     options = Options()
     options.headless = True
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -60,6 +65,9 @@ def get_page_attributes_sel(url, feature_body):
         return get_page_attributes(feature_body)
 
 def get_page_attributes(body):
+    """
+    Extract the restaurant parameters.
+    """
     attributes_body = body.find('div', {'class':'place_info'})
     if(attributes_body):
         attributes_list = attributes_body.find_all('li')
@@ -80,6 +88,11 @@ def get_type(feature_page):
         print("[get_type] error: ", e)
 
 def get_number_of_reviews(body):
+    """
+    Extracts the number of the restaurant reviews.
+    :param body:
+    :return:
+    """
     try:
         reviews_body = body.find('div', {'class':'raviews_box_item'})
         if(reviews_body):
@@ -94,7 +107,6 @@ def get_number_of_reviews(body):
 
 def get_name(feature_page):
     """
-
     :param feature_page:
     :return: name of the restaurant
     """
@@ -106,7 +118,7 @@ def get_name(feature_page):
 
 def get_stars(feature_page):
     """
-
+    Extract the restaurant rating.
     :param feature_page:
     :return:number of stars
     """
@@ -121,7 +133,7 @@ def get_stars(feature_page):
 
 def get_geolocation(feature_page):
     """
-
+    Extract the location of the restaurant
     :param feature_page:
     :return: geolocation of rest
     """
@@ -135,7 +147,7 @@ def get_geolocation(feature_page):
 
 def save_df_to_csv(df):
     """
-    creates csv based on the DF.
+    creates csv based on the df and save it with a unique timestamp.
     """
     folder_name = "Resturants Output"
     if(not os.path.exists(folder_name)):
@@ -148,7 +160,9 @@ def save_df_to_csv(df):
 
 def extract_page_attributes(page):
     """
-
+    This function extract the restaurant features/ parameters using dedicated function for each parameter.
+    Then it creates a dictionary that holds the restaurant data and add it to the data_local list.
+    The function set the value of '1' for each parameter of the restaurant.
     :param page:
     :return: list of JSON of restaurants
     """
@@ -184,6 +198,11 @@ def extract_page_attributes(page):
     return data_local
 
 def get_data_for_pages(num):
+    """
+    This function gets number of pages to extract from the site.
+    It goes over the site pages for num of times and using the  extract_page_attributes function
+    to extract the page attributes indo the data variable
+    """
     page = get_page_soup("https://www.rest.co.il/restaurants/israel")
     data.extend(extract_page_attributes(page))  # adding the page lst of JSON to global data DF
     if(num == 1):
@@ -196,35 +215,17 @@ def get_data_for_pages(num):
         data.extend(extract_page_attributes(page))
     return data
 
-def score_equation(df, row):
-    #ToDO: delete this function or fix to implment instead of labda
+def load_csv(file_name):
     """
-    calculate score of rest
-    x - c*(s/sqrt(n))
-    x = stars
-    c = 1.96
-    n = number of reviews
-    :param df:
-    :return:
-
-    x̄ = sample mean
-    μ0 = population mean
-    s = sample standard deviation
-    n = sample size
-
+    For testing. loading our saved df from CSV file.
     """
-    x = df['stars'][row]
-    c = 1.96
-    n = df['num_of_reviews'][row]
-    s = 1  # std of the stars
-
-    return (x-(c * ( s / math.sqrt(n))))
-
-def load_csv(file_name): #for testing
     return pd.read_csv(file_name, header=0, sep=',')
 
 def fill_empty_binary_values(df):
-    #df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])] = df.loc[:, ~df.columns.isin(['id', 'name', 'stars', 'location', 'num_of_reviews'])].fillna(value=0)
+    """
+    Our DataFrame is built in a way that each restaurant is adding its on features/ parameters.
+    This means we need to add the value '0' to all columns of the other restaurants in order to avoid missing cells.
+    """
     df.fillna(value=0, inplace=True)
 
 def heat_map(df):
@@ -233,6 +234,11 @@ def heat_map(df):
     plt.show()
 
 def update_score(df):
+    """
+    This function calculates the restaurants score according to
+    the T-Distribution formula and add it to the DataFrame.
+    We also added a normalized column for convenience
+    """
     df['score'] = df.apply(lambda row: row.stars - (1.96 * (1 / math.sqrt(row.num_of_reviews))), axis=1)  # update score column
     df['score_normalized'] = df.apply(lambda row: (row.score - min(df.score)) / (max(df.score) - min(df.score)), axis=1)  # normalized = (x-min(x))/(max(x)-min(x))
 
@@ -265,6 +271,12 @@ def type_to_int(df):
     :param df:
     :return:
     """
+
+    le = preprocessing.LabelEncoder()
+    list = df['type']
+    list = le.fit_transform(list)
+    df.insert(loc=3, column='type_numeric', value=list)
+
     # le = preprocessing.LabelEncoder()
     # list = df['type']
     # list = le.fit_transform(list)
@@ -276,24 +288,25 @@ def type_to_int(df):
 
     # lbl = LabelEncoder()
     # df['type_numeric'] = lbl.fit_transform(df['type'])
+
+
     return df
 
 def heat_map(df):
+    """
+    Create and show heat map of our DataFrame parameters.
+    """
     corr = df.corr()  # heat map
     sns.heatmap(corr, xticklabels=corr.columns, yticklabels=corr.columns)  #
     plt.show()
 
-
-#make this work
 # def geo_map(df):
 #     """
-#     creates a map with visualization of the scores of each restaurants
+#     Creates a map with visualization of the scores of each restaurant.
 #     """
 #     lat = df['lat'].values
 #     lon = df['lon'].values
 #     score = df['score_normalized'].values
-#
-#     fig = plt.figure(figsize=(8, 8))
 #
 #     m = Basemap(projection='lcc', resolution='h',
 #                 width=0.5E6, height=0.5E6,
@@ -304,43 +317,21 @@ def heat_map(df):
 #     m.drawcountries(color='gray')
 #     m.drawstates(color='gray')
 #
-#
-#
-#     m.scatter(lon, lat, latlon=True, c = score,s = 15, cmap='Reds', alpha=0.3)  # c=np.log10(score)
+#     m.scatter(lon, lat, latlon=True, c = score,s = 15, cmap='Reds', alpha=0.3)
 #
 #     plt.colorbar(label='score')
 #     plt.clim(0, 1)
 #
-#     # Map (long, lat) to (x, y) for plotting
 #     x, y = m(32, 34)
 #     plt.plot(x, y, 'ok', markersize=2)
 #     plt.text(x, y, ' scores', fontsize=12)
 #     plt.show()
 
-# remove this func
-def show_rest_map(df, gpd=None):
-    geo_df = pd.DataFrame(columns=['id', 'lat', 'lon', 'score'])
-
-    geo_df['id'] = df['id']
-    #geo_df['lat'] = df['location'].str.extract(r'(.*),')
-    #geo_df['lon'] = df['location'].str.extract(r'(\w+(?: \w+)*)$')
-    geo_df['lat'] = df['lat']
-    geo_df['lon'] = df['lon']
-    geo_df['score'] = df['score']
-
-    geo_df = geo_df[geo_df.lat != '0']
-    geo_df = geo_df[geo_df.lon != '0']
-
-    a = 1
-
-    geometry = [Point(xy) for xy in zip(geo_df['lat'], geo_df['lon'])]
-    gdf = GeoDataFrame(df, geometry=geometry)
-
-    # this is a simple map that goes with geopandas
-    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-    gdf.plot(ax=world.plot(figsize=(10, 6)), marker='o', color='red', markersize=15)
-
 def show_histograms(df):
+    """
+        This function is calculating the 10 most common features and shows histograms for
+        each one showing the resturant type score histogram
+    """
     type_col = df['type_numeric'].to_list()
     values, counts = np.unique(type_col, return_counts=True)
     ind = np.argpartition(-counts, kth=10)[:10]
@@ -354,14 +345,39 @@ def show_histograms(df):
         ax = sns.displot(y, kde=True)
         ax.set(xlabel='score', ylabel='number of restaurants')
         ax.fig.suptitle(name)
+        plt.ylim([0, 70])
         plt.show()
 
 
 
 def show_boxplot(df):
+    """
+    Creates boxplot
+    """
     sns.set_theme(style="white", palette="pastel")
     ax = sns.boxplot(x=df["score"])
     plt.show()
+
+
+def get_highly_correlated_cols(df):
+    """
+    Returns correlations array and tupples array showing tuples of highly correlated columns/ parameters
+    """
+    list = df.corr().abs().unstack()
+    correlations = []
+    tuple_arr = []
+
+    for index, value in list.items():
+        if (index[0] == index[1]):
+            continue
+        col1 = df.columns.get_loc(index[0])
+        col2 = df.columns.get_loc(index[1])
+        if (value >= 0.5 and (col2, col1) not in tuple_arr):
+            print("{} - {}".format(index[0], index[1]))
+            correlations.append(value)
+            tuple_arr.append((col1, col2))
+
+    return correlations, tuple_arr
 
 # data = get_data_for_pages(400)
 # df = pd.DataFrame.from_records(data)
@@ -375,12 +391,13 @@ df = df.loc[:, (df != 0).any(axis=0)] #Removes columns with zeros only
 df = type_to_int(df)
 df = split_loc(df)
 update_score(df)
-save_df_to_csv(df)
+#save_df_to_csv(df)
 #print(df)
 
 
 #EDA
 
+#get_highly_correlated_cols(df)
 #heat_map(df)
 #show_rest_map(df)
 #show_histograms(df)
